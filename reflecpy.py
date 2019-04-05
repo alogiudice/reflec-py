@@ -2,6 +2,7 @@ import numpy as np
 #from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from scipy.signal import argrelextrema
+from pylab import *
 from scipy import stats
 import statsmodels.api as sm
 from math import pow
@@ -42,7 +43,8 @@ def get_slope(c, n, fig):
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(npeaks, angpeaks)
     thetacrit_exp = pow(intercept, 1/2) * (360 / np.pi)
-    ax[1].clear()
+    #ax[1].clear()
+    
     ax[1].grid()
     ax[1].plot(npeaks, angpeaks, 'o')
     ax[1].plot(npeaks, npeaks * slope + intercept, color='green')
@@ -50,9 +52,7 @@ def get_slope(c, n, fig):
     print('Fitting results for data:')
     print("slope: %e intercept: %e, R-squared: %f" % (slope, intercept, r_value))
     print("2theta_crit value obtained is %f . Value obtained from counts was %f" % (thetacrit_exp, thetacrit_int))
-    prompt1 = input("Change max to min? (y/n): ")
-    prompt2 = input("Increment n by one? (Current n is %f): " % n)
-    return slope, intercept, r_value, prompt1, prompt2
+    return slope, intercept, r_value
 
 
 def smoothcounts(counts, x, fraclowess, x_cutoff, fig):
@@ -61,10 +61,10 @@ def smoothcounts(counts, x, fraclowess, x_cutoff, fig):
     # que están especificadas las posiciones de los picos en el rango 
     # [max_index:x_cutoff]
     
-    #La idea es ver ahora cómo obtener los máx y mín de la curva. Es un proceso
+    # La idea es ver ahora cómo obtener los máx y mín de la curva. Es un proceso
     # que parece complicado, porque vamos a tener que smoothear la función.
     # Probé con savgol y no dio muy bien para el tipo de señal que tenemos.
-    #También habría que poner hasta qué pico queremos smoothear.
+    # También habría que poner hasta qué pico queremos smoothear.
     
     max_value = max(counts)
     max_index = counts.index(max_value)
@@ -96,17 +96,36 @@ def smoothcounts(counts, x, fraclowess, x_cutoff, fig):
     
     ax[0].legend(('Smooth', 'Data', 'Found maxima'), loc='upper right')
     ques = input("Counts smoothing is OK? (y/n) (If not, specify a new LOWESS fraction, current is %f)" % fraclowess)
-    return peaks_index, ques, c
+    return peaks_index, ques, c, xx, yy, lowess
+
+
+def prompt_n(n):
+    # Esta función la definimos para ir cambiando el valor de n según lo que 
+    # decida el usuario.
+    while 1 != 0:
+        prompt = input("Change n value? (Current n is %f):  " % n)
+        if prompt == 'y':
+            n_new = input("Specify new n value:  ")
+            n = float(n_new)
+            break
+        elif prompt == 'n':
+            break
+        else:
+            print('Specify y/n.')
+    return n
 
 
 ##############################################################################
  ############################################################################
+  ########################### PROGRAM START ###############################
 
 fileopen = "XRR_Real1396.dat"
 file = open(fileopen, "r")
 x = []
 counts = []
+n = 1
 lambdax = 1.5406 # La longitud de onda de los rayos X usados (Cu)
+
 fig, ax = plt.subplots(2)
 
 
@@ -116,7 +135,7 @@ with open(fileopen) as f:
          values = line.split()
          x.append(float(line.split(' ')[0]))
          counts.append(float(line.split(' ')[1]))
-
+         
 file.close()
 
 thetacrit_int = thetacrit(counts, x)
@@ -124,7 +143,14 @@ x_cutoff = x.index(1.705)
 plt.draw()
 
 fraclowess = 0.05
-peaks_index, ques, c = smoothcounts(counts, x, fraclowess, x_cutoff, fig)
+peaks_index, ques, c, xx, yy, lowess = smoothcounts(counts, x, fraclowess, x_cutoff, fig)
+ax[0].clear()
+ax[0].grid()
+ax[0].scatter(xx, yy, color='orange')
+ax[0].plot(xx, lowess[:, 1], color='red')
+ax[0].set_yscale('log')
+
+
 promptloop = False
 
 while promptloop == False:
@@ -132,37 +158,30 @@ while promptloop == False:
         break
     elif ques == "n":
         fraclowess = input("Specify a new LOWESS fraction. Current one is %f. : " % fraclowess)
-        peaks_index, ques, c = smoothcounts(counts, x, float(fraclowess), x_cutoff, fig)
-
-#Ahora ya tenemos la ubicación de los picos y los valores de éstos. Ya 
-#podríamos encontrar el valor del ancho de la película y del ángulo crítico.
+        peaks_index, ques, c, xx, yy, lowess = smoothcounts(counts, x, float(fraclowess), x_cutoff, fig)
+        ax[0].set_ydata(xx, lowess[:,1], color='red')
 
 
 #Calculamos el valor del theta crítico y lo comparamos con el obtenido anterior
 #mente.
 
-n = 1
-slope, intercept, r_value, prompt1, prompt2 = get_slope(c, n, fig)
-
-while promptloop == False:
-    if prompt1 == 'y' and prompt2 == 'n' :
-        n += 1/2
-        get_slope(c,n, fig)
-    elif prompt1 == 'y' and prompt2 == 'y':
-        n += 3/2
-        get_slope(c,n, fig)
-    elif prompt1 == 'n' and prompt2 == 'y':
-        n += 1
-        get_slope(c,n, fig)
-    elif prompt1 == 'n' and prompt2 == 'n':
+while 1 != 0:
+    n = prompt_n(n)
+    slope, intercept, r_value = get_slope(c, n, fig)
+    a = input("Values OK? (y/n)")
+    if a == 'y':
         break
-    break
+    elif a == 'n':
+        continue
+    else:
+        print('Please answer with y or n.')
+            
 # Calculamos el espesor de la capa especificada.
 width = pow(1 / slope, 1/2)
 width /= 10
 
 print("Layer thickness has been calculated at %f nm." % width)
-plt.show()
+
 # plt.scatter(npeaks, angpeaks)
 #plt.ylim(min(angpeaks), max(angpeaks))
 
