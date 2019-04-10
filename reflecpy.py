@@ -2,11 +2,11 @@ import numpy as np
 #from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from scipy.signal import argrelextrema
-from pylab import *
 from scipy import stats
 import statsmodels.api as sm
 from math import pow
 
+auto_optim = True
 
 def thetacrit(counts, x):
     # Esta función devuelve el valor del ángulo crítico del sistema, teniendo 
@@ -43,15 +43,17 @@ def get_slope(c, n, fig):
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(npeaks, angpeaks)
     thetacrit_exp = pow(intercept, 1/2) * (360 / np.pi)
+    thetacrit_diff = ( (thetacrit_exp - thetacrit_int) / thetacrit_int ) * 100
     #ax[1].clear()
     
-    ax[1].grid()
+    #ax[1].draw()
     ax[1].plot(npeaks, angpeaks, 'o')
     ax[1].plot(npeaks, npeaks * slope + intercept, color='green')
     
     print('Fitting results for data:')
-    print("slope: %e intercept: %e, R-squared: %f" % (slope, intercept, r_value))
+    print("slope: %e,\nIntercept: %e,\nR-squared: %f" % (slope, intercept, r_value))
     print("2theta_crit value obtained is %f . Value obtained from counts was %f" % (thetacrit_exp, thetacrit_int))
+    print("Percentage difference between both critical angles is %f%%" % thetacrit_diff)
     return slope, intercept, r_value
 
 
@@ -77,10 +79,9 @@ def smoothcounts(counts, x, fraclowess, x_cutoff, fig):
 
     # Ojo: Estoy casi segura que la frac del lowess deberá cambiarse dependiendo
     # del caso. Agregar un input para esto.
-    ax[0].clear()
-    ax[0].grid()
-    ax[0].scatter(xx, yy, color='orange')
-    ax[0].plot(xx, lowess[:, 1], color='red')
+    plt.draw()
+    ax[0].scatter(xx, yy, color='orange', label="Data")
+    line1, = ax[0].plot(xx, lowess[:, 1], color='red', label="Smooth")
     ax[0].set_yscale('log')
 
     peaks_index = argrelextrema(lowess[:,1], np.greater)
@@ -91,10 +92,10 @@ def smoothcounts(counts, x, fraclowess, x_cutoff, fig):
         k = peaks_index[0][i]
         c[i] = xx[k]
         z = lowess[k,1]
-        ax[0].plot(c[i], z, color='grey', marker='s')
+        line2, = ax[0].plot(c[i], z, color='grey', marker='s')
         plt.draw()
     
-    ax[0].legend(('Smooth', 'Data', 'Found maxima'), loc='upper right')
+    ax[0].legend(loc='upper right')
     ques = input("Counts smoothing is OK? (y/n) (If not, specify a new LOWESS fraction, current is %f)" % fraclowess)
     return peaks_index, ques, c, xx, yy, lowess
 
@@ -118,7 +119,8 @@ def prompt_n(n):
 ##############################################################################
  ############################################################################
   ########################### PROGRAM START ###############################
-
+#plt.use("TkAgg")
+plt.ion()
 fileopen = "XRR_Real1396.dat"
 file = open(fileopen, "r")
 x = []
@@ -127,6 +129,9 @@ n = 1
 lambdax = 1.5406 # La longitud de onda de los rayos X usados (Cu)
 
 fig, ax = plt.subplots(2)
+
+ax[0].grid()
+ax[1].grid()
 
 
 with open(fileopen) as f:
@@ -140,15 +145,16 @@ file.close()
 
 thetacrit_int = thetacrit(counts, x)
 x_cutoff = x.index(1.705)
-plt.draw()
+
+
 
 fraclowess = 0.05
 peaks_index, ques, c, xx, yy, lowess = smoothcounts(counts, x, fraclowess, x_cutoff, fig)
-ax[0].clear()
-ax[0].grid()
-ax[0].scatter(xx, yy, color='orange')
-ax[0].plot(xx, lowess[:, 1], color='red')
-ax[0].set_yscale('log')
+#ax[0].clear()
+#ax[0].grid()
+#ax[0].scatter(xx, yy, color='orange')
+#ax[0].plot(xx, lowess[:, 1], color='red')
+#ax[0].set_yscale('log')
 
 
 promptloop = False
