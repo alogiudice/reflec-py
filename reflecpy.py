@@ -31,7 +31,7 @@ class Reflect():
         
         return thetacritic
     
-    def smoothcounts(self, fraclowess, x_cutoffindex = 1.705):
+    def smoothcounts(self, fraclowess, fig_smooth, ax, tester, x_cutoffindex = 1.705):
         # Esta función grafica los datos sin smoothear, los ya smootheados por 
         # lowess, y a los picos encontrados. Devuelve el array peaks_index, en el 
         # que están especificadas las posiciones de los picos en el rango 
@@ -42,6 +42,7 @@ class Reflect():
         # Probé con savgol y no dio muy bien para el tipo de señal que tenemos.
         # También habría que poner hasta qué pico queremos smoothear.
         
+        
         max_value = max(self.counts)
         max_index = self.counts.index(max_value)
         x_cutoff = self.x.index(x_cutoffindex)
@@ -50,26 +51,39 @@ class Reflect():
         
         xx = self.x[max_index:x_cutoff]
         yy = self.counts[max_index:x_cutoff]
+        
+        
     
         lowess = sm.nonparametric.lowess(yy, xx, frac=fraclowess)
         
-        line1, = ax.plot(xx, yy, color='orange', label='data')
-        line2, = ax.plot(xx, lowess[:, 1], color='red', label="Smooth")
-        ax.set_ylabel('counts')
-        ax.set_xlabel('2theta[deg]')
-        ax.set_yscale('log')
-    
         peaks_index = argrelextrema(lowess[:,1], np.greater)
         peaks_index_zero = [max_index + y for y in peaks_index[0]]
-        
         print("Found %d local maxima." % len(peaks_index[0]) )
         
+        peak_list = []
+        xpeaks = []
         for peak in peaks_index[0]:
-            line3, = ax.plot(xx[peak], lowess[peak,1], color='grey', marker='s')
-            plt.draw()
-        
-        ax.legend(loc='lower left')
-        return peaks_index_zero
+            peak_list.append(lowess[peak, 1])
+            xpeaks.append(xx[peak])
+            
+        if tester is False:
+            line1, = ax.plot(xx, yy, color='orange', label='data')
+            line2, = ax.plot(xx, lowess[:,1], color='red', label="Smooth")
+            #line3, = ax.plot(xpeaks, 2, color='grey', marker='s', label= 'Found maxima')
+            ax.set_ylabel('counts')
+            ax.set_xlabel('2theta[deg]')
+            ax.set_yscale('log')
+            ax.legend(loc='lower left')
+        else:
+            line2.set_xdata(xx)
+            line2.set_ydata(lowess[:, 1])
+            #line3.set_xdata()
+            #line3.set_ydata(peak_list)
+            fig_smooth.canvas.draw()
+            
+            
+        tester = True
+        return peaks_index_zero, tester
 
 
     def get_slope(self, peaks_index_zero, n):
@@ -122,6 +136,7 @@ class Reflect():
   ########################### PROGRAM START ###############################
 #plt.use("TkAgg")
 plt.ion()
+tester = False
 fileopen = "/home/agostina/git/reflec-py/XRR_Real1396.dat"
 file = open(fileopen, "r")
 x = []
@@ -129,9 +144,11 @@ counts = []
 n = 1
 lambdax = 1.5406 # La longitud de onda de los rayos X usados (Cu)
 
-fig = plt.figure()
-ax = fig.add_subplot(111)
-ax2 = fig.add_subplot(211)
+fig_smooth = plt.figure()
+ax = fig_smooth.add_subplot(111)
+
+#fig = plt.figure()
+
 
 with open(fileopen) as f:
      data = f.readlines()
